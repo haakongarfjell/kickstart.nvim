@@ -194,6 +194,8 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+vim.keymap.set('i', 'jk', '<Esc>', { noremap = true, silent = true })
+
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
 -- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
@@ -666,7 +668,7 @@ require('lazy').setup({
         -- clangd = {},
         -- gopls = {},
         -- pyright = {},
-        -- rust_analyzer = {},
+        rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
@@ -867,6 +869,25 @@ require('lazy').setup({
       signature = { enabled = true },
     },
   },
+  { -- Autopairs
+    'windwp/nvim-autopairs',
+    event = 'InsertEnter',
+    config = function()
+      local npairs = require 'nvim-autopairs'
+      local Rule = require 'nvim-autopairs.rule'
+
+      npairs.setup {
+        check_ts = true, -- use Treesitter to better handle pairs
+        fast_wrap = {}, -- optional: press <M-e> to wrap existing text
+      }
+
+      -- Add < > pairing globally
+      npairs.add_rules {
+        Rule('<', '>'),
+        Rule('|', '|'),
+      }
+    end,
+  },
 
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
@@ -969,7 +990,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
