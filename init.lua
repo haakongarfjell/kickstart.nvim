@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -161,6 +161,8 @@ vim.opt.scrolloff = 10
 -- See `:help 'confirm'`
 vim.opt.confirm = true
 
+vim.opt.completeopt = { 'menu', 'menuone' }
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -196,6 +198,9 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 
 vim.keymap.set('i', 'jk', '<Esc>', { noremap = true, silent = true })
 
+-- vim.keymap.set('n', '<leader>tg', '<Plug>(GitLabToggleCodeSuggestions)', { desc = 'Toggle GitLab Suggestions' })
+-- Toggle GitLab Duo LSP (start/stop) to avoid ghost_text errors when "off"
+
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
 -- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
@@ -205,6 +210,44 @@ vim.keymap.set('i', 'jk', '<Esc>', { noremap = true, silent = true })
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
+-- :Clippy[ <extra cargo args>]
+-- Examples:
+--   :Clippy
+--   :Clippy --workspace --all-targets
+vim.api.nvim_create_user_command('Clippy', function(opts)
+  -- Use Vim’s built-in "cargo" compiler to parse output into quickfix
+  vim.cmd 'compiler cargo'
+
+  -- Save/restore makeprg so we don't clobber user settings
+  local old_makeprg = vim.o.makeprg
+
+  -- Use short messages so errorformat parses cleanly
+  local args = table.concat(opts.fargs, ' ')
+  local make = 'cargo clippy --message-format=short'
+  if args ~= '' then
+    make = make .. ' ' .. args
+  end
+  vim.o.makeprg = make
+
+  -- Run and populate quickfix
+  vim.cmd 'silent make | redraw!'
+
+  -- Open quickfix if there are any entries
+  if #vim.fn.getqflist() > 0 then
+    vim.cmd 'copen'
+  else
+    vim.notify('Clippy passed ✓', vim.log.levels.INFO)
+  end
+
+  -- Restore
+  vim.o.makeprg = old_makeprg
+end, {
+  nargs = '*',
+  complete = function()
+    return { '--workspace', '--all-targets', '--all-features' }
+  end,
+  desc = 'Run cargo clippy and load results into quickfix',
+})
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
 --  See `:help vim.highlight.on_yank()`
@@ -665,10 +708,27 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
-        -- pyright = {},
-        rust_analyzer = {},
+        pyright = {},
+        rust_analyzer = {
+          settings = {
+            ['rust-analyzer'] = {
+              cargo = {
+                allFeatures = true,
+                buildScripts = { enable = true },
+              },
+
+              checkOnSave = true,
+
+              check = {
+                command = 'clippy',
+                workspace = true,
+                allTargets = true,
+              },
+            },
+          },
+        },
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
@@ -869,33 +929,34 @@ require('lazy').setup({
       signature = { enabled = true },
     },
   },
-  { -- Autopairs
-    'windwp/nvim-autopairs',
-    event = 'InsertEnter',
-    config = function()
-      local npairs = require 'nvim-autopairs'
-      local Rule = require 'nvim-autopairs.rule'
-
-      npairs.setup {
-        check_ts = true, -- use Treesitter to better handle pairs
-        fast_wrap = {}, -- optional: press <M-e> to wrap existing text
-      }
-
-      -- Add < > pairing globally
-      npairs.add_rules {
-        Rule('<', '>'),
-        Rule('|', '|'),
-      }
-    end,
-  },
-
+  -- {
+  --   'https://gitlab.com/gitlab-org/editor-extensions/gitlab.vim.git',
+  --   -- Activate when a file is created/opened
+  --   event = { 'BufReadPre', 'BufNewFile' },
+  --   -- Activate when a supported filetype is open
+  --   ft = { 'go', 'javascript', 'python', 'ruby', 'rust' },
+  --   cond = function()
+  --     -- Only activate if token is present in environment variable.
+  --     -- Remove this line to use the interactive workflow.
+  --     return vim.env.GITLAB_TOKEN ~= nil and vim.env.GITLAB_TOKEN ~= ''
+  --   end,
+  --   main = 'gitlab',
+  --   opts = {
+  --     statusline = { enabled = true },
+  --     code_suggestions = {
+  --       auto_filetypes = { 'go', 'javascript', 'python', 'ruby', 'rust' },
+  --       ghost_text = { enabled = true, stream = true, accept_suggestion = '<C-g>', clear_suggestions = '<C-e>', toggle_enabled = '<C-]>' },
+  --     },
+  --   },
+  -- },
   { -- You can easily change to a different colorscheme.
     -- Change the name of the colorscheme plugin below, and then
     -- change the command in the config to whatever the name of that colorscheme is.
     --
+    --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
     'folke/tokyonight.nvim',
-    priority = 1000, -- Make sure to load this before all the other start plugins.
+    priority = 1000, -- Make sure to load this before all the other start plugins.y
     config = function()
       ---@diagnostic disable-next-line: missing-fields
       require('tokyonight').setup {
@@ -989,8 +1050,11 @@ require('lazy').setup({
   -- require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.autopairs',
   require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.harpoon',
+  require 'kickstart.plugins.undotree',
+  require 'kickstart.plugins.fugitive',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
